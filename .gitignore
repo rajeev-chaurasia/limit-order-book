@@ -1,0 +1,32 @@
+*.class
+*.log
+*.jar
+*.war
+*.ear
+*.iml
+*.ipr
+*.iws
+
+# Gradle
+.gradle/
+build/
+out/
+
+# IDE
+.idea/
+.vscode/
+*.swp
+*.swo
+*~
+
+# OS
+.DS_Store
+Thumbs.db
+
+# JMH
+jmh-result.json
+*.jfr
+
+# Logs
+logs/
+*.log

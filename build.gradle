@@ -1,0 +1,84 @@
+plugins {
+    id 'java'
+    id 'application'
+    id 'me.champeau.jmh' version '0.7.2'
+}
+
+group = 'com.hft'
+version = '1.0-SNAPSHOT'
+
+java {
+    toolchain {
+        languageVersion = JavaLanguageVersion.of(17)
+    }
+}
+
+repositories {
+    mavenCentral()
+}
+
+dependencies {
+    // fastutil for primitive collections (zero-boxing overhead)
+    implementation 'it.unimi.dsi:fastutil:8.5.12'
+    
+    // Javalin for REST API
+    implementation 'io.javalin:javalin:5.6.3'
+    
+    // Gson for JSON serialization
+    implementation 'com.google.code.gson:gson:2.10.1'
+    
+    // Jackson for Javalin JSON serialization
+    implementation 'com.fasterxml.jackson.core:jackson-databind:2.16.1'
+    
+    // SLF4J for logging (required by Javalin)
+    implementation 'org.slf4j:slf4j-simple:2.0.9'
+    
+    // JUnit 5 for testing
+    testImplementation platform('org.junit:junit-bom:5.10.1')
+    testImplementation 'org.junit.jupiter:junit-jupiter'
+    
+    // JMH dependencies (managed by plugin)
+    jmh 'org.openjdk.jmh:jmh-core:1.37'
+    jmh 'org.openjdk.jmh:jmh-generator-annprocess:1.37'
+}
+
+application {
+    mainClass = 'com.hft.clob.ApiServer'
+}
+
+// Custom task to run API server
+task runApiServer(type: JavaExec) {
+    group = 'application'
+    description = 'Runs the CLOB REST API Server'
+    classpath = sourceSets.main.runtimeClasspath
+    mainClass = 'com.hft.clob.ApiServer'
+}
+
+jmh {
+    // JMH configuration
+    jmhVersion = '1.37'
+    duplicateClassesStrategy = DuplicatesStrategy.WARN
+    fork = 1
+    warmupIterations = 3
+    iterations = 5
+    
+    // JVM arguments for optimal performance measurement
+    jvmArgs = [
+        '-XX:+UseG1GC',
+        '-Xms2g',
+        '-Xmx2g'
+    ]
+}
+
+test {
+    useJUnitPlatform()
+    
+    // Configure test JVM for performance monitoring
+    jvmArgs '-XX:+UnlockDiagnosticVMOptions', '-Xms1g', '-Xmx1g'
+    
+    testLogging {
+        events "passed", "skipped", "failed"
+        exceptionFormat "full"
+        showStandardStreams = true
+    }
+}
