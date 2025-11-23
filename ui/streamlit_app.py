@@ -4,9 +4,10 @@ import pandas as pd
 import plotly.graph_objects as go
 from plotly.subplots import make_subplots
 import time
+import os
 
-# Configuration
-API_BASE_URL = "http://localhost:8080/api"
+# Configuration - supports both local and deployed modes
+API_BASE_URL = os.getenv("API_BASE_URL", "http://localhost:8080/api")
 
 st.set_page_config(
     page_title="CLOB Order Book Visualizer",
@@ -154,6 +155,22 @@ if auto_refresh:
 quote = fetch_data("quote")
 book = fetch_data("book")
 stats = fetch_data("stats")
+
+# Check if backend is available
+if quote is None and book is None and stats is None:
+    st.error("⚠️ **Backend API is not available**")
+    st.info(f"""
+    The Streamlit UI is trying to connect to: `{API_BASE_URL}`
+    
+    **For local development:**
+    - Make sure the Java backend is running: `./gradlew runApiServer`
+    
+    **For deployment:**
+    - Deploy the Java backend separately (e.g., to Render, Railway, or Heroku)
+    - Set the `API_BASE_URL` environment variable in Streamlit Cloud settings
+    """)
+    st.stop()
+
 
 # Top metrics
 if quote:
