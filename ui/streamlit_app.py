@@ -142,11 +142,13 @@ with st.sidebar:
             st.error(f"❌ Failed: {result}")
     
     st.divider()
-    
-    # Auto-refresh
-    auto_refresh = st.checkbox("Auto-refresh", value=True)
-    if auto_refresh:
-        refresh_interval = st.slider("Refresh interval (s)", 1, 10, 2)
+
+# Auto-refresh controls (outside sidebar to prevent duplication)
+auto_refresh = st.sidebar.checkbox("Auto-refresh", value=False, key="auto_refresh_checkbox")
+refresh_interval = 2
+if auto_refresh:
+    refresh_interval = st.sidebar.slider("Refresh interval (s)", 1, 10, 2, key="refresh_slider")
+
 
 # Main content
 quote = fetch_data("quote")
@@ -262,9 +264,7 @@ else:
 st.divider()
 st.caption("High-Performance Concurrent Limit Order Book • Built with Java + Streamlit")
 
-# Auto-refresh with proper handling
+# Auto-refresh
 if auto_refresh:
-    # Use Streamlit's built-in rerun with time delay
-    import time
     time.sleep(refresh_interval)
     st.rerun()
