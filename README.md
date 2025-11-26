@@ -102,6 +102,3 @@ src/main/java/com/hft/clob/
 └── ApiServer.java  # Application Entry Point
 ui/                 # Streamlit Dashboard
 ```
-
-## 📝 License
-MIT License
