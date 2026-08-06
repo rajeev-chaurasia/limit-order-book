@@ -1,6 +1,7 @@
 *.class
 *.log
 *.jar
+!gradle/wrapper/gradle-wrapper.jar
 *.war
 *.ear
 *.iml
@@ -23,10 +24,12 @@ out/
 .DS_Store
 Thumbs.db
 
-# JMH
+# JMH / benchmark scratch output (published results live in docs/benchmarks/data/)
 jmh-result.json
 *.jfr
+results/
+*.hgrm
+!docs/benchmarks/data/*.hgrm
 
 # Logs
 logs/
-*.log

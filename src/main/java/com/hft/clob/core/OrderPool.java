@@ -12,9 +12,6 @@ import java.util.concurrent.locks.ReentrantLock;
  * object allocation for nodes or complex array management.
  * A simple lock-protected array stack is Zero-GC and sufficiently fast for this
  * demo.
- * 
- * Resume Hook: "Implemented zero-allocation order pool achieving 0 bytes/op GC
- * rate"
  */
 public class OrderPool {
     private static final int POOL_SIZE = 100_000;

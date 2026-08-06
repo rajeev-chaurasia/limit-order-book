@@ -1,0 +1,24 @@
+[versions]
+fastutil = "8.5.12"
+javalin = "5.6.3"
+gson = "2.10.1"
+jackson = "2.16.1"
+slf4j = "2.0.9"
+junit = "5.10.1"
+jmh = "1.37"
+jmhPlugin = "0.7.3"
+
+[libraries]
+fastutil = { module = "it.unimi.dsi:fastutil", version.ref = "fastutil" }
+javalin = { module = "io.javalin:javalin", version.ref = "javalin" }
+gson = { module = "com.google.code.gson:gson", version.ref = "gson" }
+jackson-databind = { module = "com.fasterxml.jackson.core:jackson-databind", version.ref = "jackson" }
+slf4j-simple = { module = "org.slf4j:slf4j-simple", version.ref = "slf4j" }
+junit-bom = { module = "org.junit:junit-bom", version.ref = "junit" }
+junit-jupiter = { module = "org.junit.jupiter:junit-jupiter" }
+junit-platform-launcher = { module = "org.junit.platform:junit-platform-launcher" }
+jmh-core = { module = "org.openjdk.jmh:jmh-core", version.ref = "jmh" }
+jmh-generator = { module = "org.openjdk.jmh:jmh-generator-annprocess", version.ref = "jmh" }
+
+[plugins]
+jmh = { id = "me.champeau.jmh", version.ref = "jmhPlugin" }

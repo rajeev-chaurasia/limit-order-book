@@ -16,9 +16,6 @@ import java.util.concurrent.locks.ReentrantLock;
  * - remove(): O(1)
  * - peek(): O(1)
  * - getTotalQuantity(): O(n) - only for market data
- * 
- * Resume Hook: "Designed lock-free price level queues with O(1) insert/delete
- * operations"
  */
 public class OrderLevel {
     private Order head;

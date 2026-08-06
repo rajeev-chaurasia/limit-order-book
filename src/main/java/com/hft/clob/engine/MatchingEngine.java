@@ -18,9 +18,6 @@ import java.util.concurrent.ConcurrentSkipListMap;
  * Concurrency Strategy:
  * - Lock specific price levels during matching (fine-grained locking)
  * - Multiple threads can match at different prices concurrently
- * 
- * Resume Hook: "Designed lock-free matching engine processing 100k+ orders/sec
- * with sub-ms latency"
  */
 public class MatchingEngine {
     private final OrderBook book;
