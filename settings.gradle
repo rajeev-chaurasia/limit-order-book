@@ -3,3 +3,6 @@ plugins {
 }
 
 rootProject.name = 'limit-order-book'
+
+include 'core'
+include 'app'

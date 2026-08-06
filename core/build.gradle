@@ -1,0 +1,42 @@
+plugins {
+    id 'java-library'
+    alias(libs.plugins.jmh)
+}
+
+group = 'io.github.rajeevchaurasia'
+version = '2.0.0'
+
+java {
+    toolchain {
+        languageVersion = JavaLanguageVersion.of(25)
+    }
+}
+
+repositories {
+    mavenCentral()
+}
+
+dependencies {
+    implementation libs.fastutil
+
+    testImplementation platform(libs.junit.bom)
+    testImplementation libs.junit.jupiter
+    testRuntimeOnly libs.junit.platform.launcher
+
+    jmh libs.jmh.core
+    jmh libs.jmh.generator
+}
+
+jmh {
+    jmhVersion = libs.versions.jmh.get()
+}
+
+test {
+    useJUnitPlatform()
+    jvmArgs '-Xms1g', '-Xmx1g'
+
+    testLogging {
+        events "passed", "skipped", "failed"
+        exceptionFormat "full"
+    }
+}

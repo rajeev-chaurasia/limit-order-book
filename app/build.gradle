@@ -1,0 +1,49 @@
+plugins {
+    id 'java'
+    id 'application'
+}
+
+group = 'io.github.rajeevchaurasia'
+version = '2.0.0'
+
+java {
+    toolchain {
+        languageVersion = JavaLanguageVersion.of(25)
+    }
+}
+
+repositories {
+    mavenCentral()
+}
+
+dependencies {
+    implementation project(':core')
+    implementation libs.javalin
+    implementation libs.jackson.databind
+    implementation libs.slf4j.simple
+
+    testImplementation platform(libs.junit.bom)
+    testImplementation libs.junit.jupiter
+    testRuntimeOnly libs.junit.platform.launcher
+}
+
+application {
+    mainClass = 'io.github.rajeevchaurasia.orderbook.app.ApiServer'
+    applicationName = 'limit-order-book'
+}
+
+tasks.register('runApiServer', JavaExec) {
+    group = 'application'
+    description = 'Runs the order book REST API server'
+    classpath = sourceSets.main.runtimeClasspath
+    mainClass = 'io.github.rajeevchaurasia.orderbook.app.ApiServer'
+}
+
+test {
+    useJUnitPlatform()
+
+    testLogging {
+        events "passed", "skipped", "failed"
+        exceptionFormat "full"
+    }
+}
