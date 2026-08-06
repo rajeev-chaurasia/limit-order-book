@@ -16,11 +16,11 @@ import java.util.function.LongSupplier;
 /**
  * Price-time priority matching engine, single-writer by design.
  *
- * <p>Exactly one thread may call the mutating methods. That single rule
- * replaces every lock the previous design needed: there is no contention,
- * no lock ordering, and no interleaving to reason about. Concurrency is
- * handled at the edges (the command ring feeds this engine; market data is
- * published through the seqlock and snapshot commands).
+ * <p>Exactly one thread may call the mutating methods. That single rule is
+ * why the book needs no locks: there is no contention, no lock ordering,
+ * and no interleaving to reason about. Concurrency is handled at the edges
+ * (the command ring feeds this engine; market data is published through
+ * the seqlock and snapshot commands).
  *
  * <p>Data plane (submit, cancel) allocates nothing in steady state: orders
  * and levels are pooled, fills are reported through primitive-argument
