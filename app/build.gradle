@@ -21,6 +21,7 @@ dependencies {
     implementation libs.javalin
     implementation libs.jackson.databind
     implementation libs.slf4j.simple
+    implementation libs.hdrhistogram
 
     testImplementation platform(libs.junit.bom)
     testImplementation libs.junit.jupiter
@@ -37,6 +38,14 @@ tasks.register('runApiServer', JavaExec) {
     description = 'Runs the order book REST API server'
     classpath = sourceSets.main.runtimeClasspath
     mainClass = 'io.github.rajeevchaurasia.orderbook.app.ApiServer'
+}
+
+tasks.register('runLoadTest', JavaExec) {
+    group = 'application'
+    description = 'Runs the end-to-end latency load test (args: rate seconds producers hgrmFile)'
+    classpath = sourceSets.main.runtimeClasspath
+    mainClass = 'io.github.rajeevchaurasia.orderbook.app.loadtest.LoadTestMain'
+    jvmArgs '-Xms1g', '-Xmx1g'
 }
 
 test {

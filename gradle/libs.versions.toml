@@ -3,6 +3,7 @@ fastutil = "8.5.16"
 javalin = "6.7.0"
 jackson = "2.19.2"
 slf4j = "2.0.17"
+hdrhistogram = "2.2.2"
 junit = "5.13.4"
 jmh = "1.37"
 jmhPlugin = "0.7.3"
@@ -12,6 +13,7 @@ fastutil = { module = "it.unimi.dsi:fastutil", version.ref = "fastutil" }
 javalin = { module = "io.javalin:javalin", version.ref = "javalin" }
 jackson-databind = { module = "com.fasterxml.jackson.core:jackson-databind", version.ref = "jackson" }
 slf4j-simple = { module = "org.slf4j:slf4j-simple", version.ref = "slf4j" }
+hdrhistogram = { module = "org.hdrhistogram:HdrHistogram", version.ref = "hdrhistogram" }
 junit-bom = { module = "org.junit:junit-bom", version.ref = "junit" }
 junit-jupiter = { module = "org.junit.jupiter:junit-jupiter" }
 junit-platform-launcher = { module = "org.junit.platform:junit-platform-launcher" }
