@@ -51,8 +51,14 @@ public final class CommandStream {
 
     private static final long MIN_QUANTITY = 10;
     private static final long QUANTITY_RANGE = 90;
-    private static final long MIN_CROSS_QUANTITY = 100;
-    private static final long CROSS_QUANTITY_RANGE = 200;
+
+    /**
+     * Marketable orders reach this many ticks past the mid, sweeping only
+     * the top of the far side, and carry add-sized quantities. Deep sweeps
+     * with large quantities drain liquidity faster than the adds replenish
+     * it, and the book degenerates instead of staying stationary.
+     */
+    private static final long CROSS_TICKS_PAST_MID = 8;
 
     public final byte[] actions;
     public final byte[] sideCodes;
@@ -112,10 +118,10 @@ public final class CommandStream {
 
     private static void fillCross(CommandStream stream, int i, Random random, int depth) {
         boolean buy = random.nextBoolean();
+        long reach = Math.min(CROSS_TICKS_PAST_MID, depth) * TICK;
         stream.actions[i] = ACTION_CROSS;
         stream.sideCodes[i] = buy ? Side.BUY.code : Side.SELL.code;
-        // Marketable limit deep into the far side: sweeps until filled.
-        stream.prices[i] = buy ? MID_PRICE + depth * TICK : MID_PRICE - depth * TICK;
-        stream.quantities[i] = MIN_CROSS_QUANTITY + random.nextLong(CROSS_QUANTITY_RANGE + 1);
+        stream.prices[i] = buy ? MID_PRICE + reach : MID_PRICE - reach;
+        stream.quantities[i] = MIN_QUANTITY + random.nextLong(QUANTITY_RANGE + 1);
     }
 }
