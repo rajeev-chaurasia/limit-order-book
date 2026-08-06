@@ -3,7 +3,10 @@ package io.github.rajeevchaurasia.orderbook.app.api;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import io.github.rajeevchaurasia.orderbook.app.ApiServer;
-import io.github.rajeevchaurasia.orderbook.app.EngineFacade;
+import io.github.rajeevchaurasia.orderbook.engine.EngineLoop;
+import io.github.rajeevchaurasia.orderbook.engine.WaitStrategy;
+import io.github.rajeevchaurasia.orderbook.gateway.EngineGateway;
+import io.github.rajeevchaurasia.orderbook.ring.MpscCommandRing;
 import io.javalin.Javalin;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
@@ -40,19 +43,24 @@ class ApiContractTest {
             "activeOrders", "poolUtilization", "poolCapacity", "bidLevels", "askLevels", "totalTrades");
 
     private Javalin app;
+    private EngineLoop loop;
     private String baseUrl;
 
     @BeforeEach
     void startServer() {
-        EngineFacade facade = new EngineFacade();
-        ApiServer.seedDemoBook(facade);
-        app = new OrderBookController(facade).start(0);
+        MpscCommandRing ring = new MpscCommandRing();
+        loop = new EngineLoop(ring, WaitStrategy.PARKING);
+        loop.start();
+        EngineGateway gateway = new EngineGateway(ring, loop);
+        ApiServer.seedDemoBook(gateway);
+        app = new OrderBookController(gateway).start(0);
         baseUrl = "http://localhost:" + app.port();
     }
 
     @AfterEach
-    void stopServer() {
+    void stopServer() throws InterruptedException {
         app.stop();
+        loop.stop();
     }
 
     @Test

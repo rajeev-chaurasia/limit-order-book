@@ -29,8 +29,8 @@ public final class RecordingListener implements EngineListener {
     }
 
     @Override
-    public void onOrderCanceled(long orderId) {
-        events.add("CANCELED id=" + orderId);
+    public void onOrderCanceled(long orderId, long remainingQuantity) {
+        events.add("CANCELED id=" + orderId + " remaining=" + remainingQuantity);
     }
 
     @Override

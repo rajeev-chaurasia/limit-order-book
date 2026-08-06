@@ -2,8 +2,12 @@ package io.github.rajeevchaurasia.orderbook.app;
 
 import io.github.rajeevchaurasia.orderbook.app.api.OrderBookController;
 import io.github.rajeevchaurasia.orderbook.book.Side;
+import io.github.rajeevchaurasia.orderbook.engine.EngineLoop;
+import io.github.rajeevchaurasia.orderbook.engine.WaitStrategy;
+import io.github.rajeevchaurasia.orderbook.gateway.EngineGateway;
+import io.github.rajeevchaurasia.orderbook.ring.MpscCommandRing;
 
-/** Entry point: seeds a demo book and serves the REST API. */
+/** Entry point: starts the engine thread, seeds a demo book, serves the REST API. */
 public final class ApiServer {
 
     private static final int DEFAULT_PORT = 8080;
@@ -22,11 +26,23 @@ public final class ApiServer {
     }
 
     public static void main(String[] args) {
-        EngineFacade facade = new EngineFacade();
-        seedDemoBook(facade);
+        MpscCommandRing ring = new MpscCommandRing();
+        EngineLoop loop = new EngineLoop(ring, WaitStrategy.PARKING);
+        loop.start();
+        EngineGateway gateway = new EngineGateway(ring, loop);
+
+        Runtime.getRuntime().addShutdownHook(new Thread(() -> {
+            try {
+                loop.stop();
+            } catch (InterruptedException e) {
+                Thread.currentThread().interrupt();
+            }
+        }, "engine-shutdown"));
+
+        seedDemoBook(gateway);
 
         int port = resolvePort();
-        new OrderBookController(facade).start(port);
+        new OrderBookController(gateway).start(port);
 
         System.out.println("Limit order book API server started on port " + port);
         System.out.println("Health check:  GET http://localhost:" + port + "/health");
@@ -35,13 +51,13 @@ public final class ApiServer {
     }
 
     /** Seeds ten resting orders per side around a 10490/10500 market. */
-    public static void seedDemoBook(EngineFacade facade) {
+    public static void seedDemoBook(EngineGateway gateway) {
         for (int i = 0; i < SEED_LEVELS; i++) {
-            facade.submit(ASK_ID_BASE + i, Side.SELL,
+            gateway.submit(ASK_ID_BASE + i, Side.SELL,
                     BASE_ASK_PRICE + i * PRICE_STEP, BASE_QUANTITY + i * QUANTITY_STEP);
         }
         for (int i = 0; i < SEED_LEVELS; i++) {
-            facade.submit(BID_ID_BASE + i, Side.BUY,
+            gateway.submit(BID_ID_BASE + i, Side.BUY,
                     BASE_BID_PRICE - i * PRICE_STEP, BASE_QUANTITY + i * QUANTITY_STEP);
         }
     }

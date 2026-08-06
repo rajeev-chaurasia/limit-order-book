@@ -142,7 +142,7 @@ public final class NaiveMatchingEngine implements OrderBookEngine {
         if (level.isEmpty()) {
             restingTree.remove(order.price);
         }
-        listener.onOrderCanceled(orderId);
+        listener.onOrderCanceled(orderId, order.quantity);
     }
 
     @Override

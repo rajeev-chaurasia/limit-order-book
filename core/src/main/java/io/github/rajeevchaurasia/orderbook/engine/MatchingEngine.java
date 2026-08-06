@@ -118,9 +118,10 @@ public final class MatchingEngine implements OrderBookEngine {
             listener.onOrderRejected(orderId, RejectReason.UNKNOWN_ORDER);
             return;
         }
+        long remaining = order.quantity;
         book.removeResting(order);
         orderPool.release(order);
-        listener.onOrderCanceled(orderId);
+        listener.onOrderCanceled(orderId, remaining);
     }
 
     @Override

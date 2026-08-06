@@ -161,7 +161,7 @@ public abstract class EngineContractTestBase {
 
         engine.cancel(1);
 
-        assertEquals(List.of("CANCELED id=1"), listener.events());
+        assertEquals(List.of("CANCELED id=1 remaining=100"), listener.events());
         assertEquals(NO_PRICE, engine.bestBid());
         assertTrue(engine.snapshotBook().bids().isEmpty());
     }

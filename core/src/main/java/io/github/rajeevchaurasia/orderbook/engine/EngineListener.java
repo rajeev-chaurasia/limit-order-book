@@ -20,7 +20,8 @@ public interface EngineListener {
 
     void onOrderAccepted(long orderId, long filledQuantity, long restingQuantity);
 
-    void onOrderCanceled(long orderId);
+    /** remainingQuantity is the unfilled quantity removed from the book. */
+    void onOrderCanceled(long orderId, long remainingQuantity);
 
     void onOrderRejected(long orderId, RejectReason reason);
 }
