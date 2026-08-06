@@ -11,20 +11,79 @@ UI polling the REST API)
 
 ![Order book dashboard](docs/assets/dashboard.png)
 
-## Design in one diagram
+## Architecture
 
+```mermaid
+flowchart TB
+    subgraph clients["Clients"]
+        UI["Streamlit dashboard<br/>(polls REST at ~1 Hz)"]
+        REST["REST clients"]
+        LOAD["Load generator<br/>(HdrHistogram harness)"]
+    end
+
+    subgraph app["app module: demo surface"]
+        CTRL["OrderBookController<br/>Javalin REST endpoints"]
+    end
+
+    subgraph gw["EngineGateway: producer-facing API, any thread"]
+        SUBMIT["submit / cancel<br/>claim slot, write primitives,<br/>publish, await response future"]
+        NOREPLY["submitNoReply<br/>fire-and-forget, zero allocation"]
+        SNAPREQ["book / trades / stats<br/>snapshot commands"]
+        BP["backpressure: spin, then park,<br/>then EngineBusyException -> HTTP 503"]
+    end
+
+    subgraph ring["MpscCommandRing: bounded, lock-free, preallocated"]
+        TAIL["tail cursor<br/>padded, producers CAS to claim"]
+        SLOTS["OrderCommand slots<br/>sequence handoff:<br/>free -> published -> consumed<br/>(release/acquire pairs)"]
+        HEAD["head cursor<br/>padded, consumer-owned"]
+    end
+
+    subgraph eng["Engine thread: the single writer"]
+        LOOP["EngineLoop<br/>drains in batches, completes futures,<br/>publishes L1 after every command"]
+        ME["MatchingEngine<br/>price-time priority, FIFO in level,<br/>executes at resting price"]
+        subgraph book["OrderBook: plain structures, no locks"]
+            BIDS["bid LevelTree<br/>intrusive AVL, key = -price"]
+            ASKS["ask LevelTree<br/>intrusive AVL, key = price"]
+            LEVELS["OrderLevel FIFO queues<br/>intrusive doubly-linked orders"]
+            IDX["order id index<br/>primitive-keyed open hash map"]
+            POOLS["OrderPool / LevelPool<br/>preallocated, recycled, zero GC"]
+        end
+        TAPE["TradeTape<br/>parallel long[] ring of last 4096 trades"]
+    end
+
+    subgraph md["Market data: lock-free read side"]
+        L1["L1Quote seqlock<br/>wait-free writer, retrying readers,<br/>odd/even version protocol"]
+    end
+
+    UI --> CTRL
+    REST --> CTRL
+    CTRL -->|"POST /api/orders<br/>DELETE /api/orders/id"| SUBMIT
+    CTRL -->|"GET /api/book, /api/trades,<br/>/api/stats"| SNAPREQ
+    CTRL -->|"GET /api/quote<br/>(never touches the ring)"| L1
+    LOAD --> NOREPLY
+
+    SUBMIT --> TAIL
+    NOREPLY --> TAIL
+    SNAPREQ --> TAIL
+    TAIL --> SLOTS
+    SLOTS --> HEAD
+    HEAD --> LOOP
+
+    LOOP --> ME
+    ME --> BIDS
+    ME --> ASKS
+    ME --> LEVELS
+    ME --> IDX
+    ME --> POOLS
+    ME -->|"onTrade / onOrderAccepted /<br/>onOrderCanceled / onOrderRejected<br/>(primitive-argument callbacks)"| LOOP
+    LOOP --> TAPE
+    LOOP -->|"publish best bid/ask + quantities"| L1
+    LOOP -.->|"complete response futures<br/>(OrderResult, CancelResult, snapshots)"| SUBMIT
 ```
-producer threads (REST handlers, load generators)
-      |                                    reader threads
-      v                                          |
-  MPSC command ring (lock-free, preallocated)    v
-      |                                    L1 seqlock quote  <- published after
-      v                                          ^              every command
-  engine thread: matching + book  ---------------+
-      |
-      v
-  response futures, trade tape, L2/stats snapshots
-```
+
+The engine thread is the only thread that ever touches the book, so the
+matching path needs no locks and cannot race. Producers meet it only at the
+ring, readers only at the seqlock and the response futures.
 
 - **Single-writer core.** The matching engine, price trees, order index,
   and pools are owned by one thread. No locks in the book, no interleavings
