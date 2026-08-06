@@ -40,7 +40,8 @@ java -jar "$JMH_JAR" RingBenchmark -bm thrpt -tu s \
     -jvmArgs "$HEAP" \
     -rf json -rff "$DATA_DIR/ring.json" ${QUICK_ARGS:+-f 1 -wi 2 -w 1s -i 2 -r 1s}
 
-echo "=== End-to-end load test (HdrHistogram) ==="
-./gradlew :app:runLoadTest -q --args="100000 30 2 $DATA_DIR/e2e-latency.hgrm"
+echo "=== End-to-end load tests (HdrHistogram) ==="
+./gradlew :app:runLoadTest -q --args="100000 30 2 $DATA_DIR/e2e-latency-100k.hgrm"
+./gradlew :app:runLoadTest -q --args="300000 30 4 $DATA_DIR/e2e-latency-300k.hgrm"
 
 echo "=== Done. Data in $DATA_DIR ==="

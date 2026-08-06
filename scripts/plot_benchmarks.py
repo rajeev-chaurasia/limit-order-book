@@ -65,6 +65,14 @@ def load_jmh(path):
         return json.load(handle)
 
 
+def load_jmh_glob(pattern):
+    """Merge results split across files (e.g. per-engine runs)."""
+    results = []
+    for path in sorted(DATA.glob(pattern)):
+        results.extend(load_jmh(path))
+    return results
+
+
 def result_key(entry):
     params = entry.get("params", {})
     return params.get("engine"), int(params.get("depth", 0)), params.get("mix")
@@ -104,36 +112,15 @@ def plot_throughput(results):
     plt.close(fig)
 
 
-def plot_latency(results):
-    wanted = ["50.0", "90.0", "99.0", "99.9"]
-    labels = ["p50", "p90", "p99", "p99.9"]
-    entries = {result_key(e): e for e in results if e["benchmark"].endswith("processCommand")}
-    fig, ax = plt.subplots(figsize=(7.0, 3.6))
-    depth, mix = 256, "ACTIVE"
-    for engine in ("optimized", "naive"):
-        entry = entries.get((engine, depth, mix))
-        if entry is None:
-            continue
-        pct = entry["primaryMetric"]["scorePercentiles"]
-        values = [pct[p] * 1000 for p in wanted]
-        ax.plot(labels, values, marker="o", markersize=6, linewidth=2,
-                color=ENGINE_COLORS[engine], label=ENGINE_LABELS[engine], zorder=3)
-        for x, value in zip(labels, values):
-            ax.annotate(f"{value:,.0f}", (x, value), textcoords="offset points",
-                        xytext=(8, -3), fontsize=8, color=INK_SECONDARY)
-    ax.set_yscale("log")
-    ax.set_ylabel("Latency (ns/command, log scale)")
-    ax.set_title(f"Per-command latency percentiles (depth {depth}, {MIX_LABELS[mix].lower()})",
-                 fontsize=12, color=INK)
-    ax.legend(frameon=False, fontsize=9, loc="upper left")
-    style_axis(ax)
-    fig.tight_layout()
-    fig.savefig(ASSETS / "latency_percentiles.svg", bbox_inches="tight")
-    plt.close(fig)
+# JMH sample-mode percentiles are deliberately not plotted: per-command cost
+# sits near the Windows timer resolution (about 100 ns), so sample mode
+# quantizes to timer ticks and the medians are artifacts. The raw JSON stays
+# committed; the published latency story is the end-to-end histogram, whose
+# microsecond-scale values are well above timer resolution.
 
 
 def plot_allocation(results):
-    metric = "·gc.alloc.rate.norm"
+    metric = "gc.alloc.rate.norm"
     rates = {}
     for entry in results:
         if not entry["benchmark"].endswith("processCommand"):
@@ -183,19 +170,27 @@ def load_hgrm(path):
     return points
 
 
-def plot_e2e(points):
+LOAD_COLORS = [OPTIMIZED, NAIVE]
+
+
+def plot_e2e(series):
+    """series: list of (label, points) with points as (percentile, value_us)."""
     fig, ax = plt.subplots(figsize=(7.0, 3.6))
-    xs = [1.0 / (1.0 - p) for p, _ in points]
-    ys = [v for _, v in points]
-    ax.plot(xs, ys, linewidth=2, color=OPTIMIZED, zorder=3)
+    max_x = 10.0
+    for (label, points), color in zip(series, LOAD_COLORS):
+        xs = [1.0 / (1.0 - p) for p, _ in points]
+        ys = [v for _, v in points]
+        max_x = max(max_x, max(xs, default=10.0))
+        ax.plot(xs, ys, linewidth=2, color=color, label=label, zorder=3)
     ax.set_xscale("log")
+    ax.set_yscale("log")
     ticks = [1, 10, 100, 1_000, 10_000, 100_000]
     tick_labels = ["p0", "p90", "p99", "p99.9", "p99.99", "p99.999"]
-    limit = max(xs) if xs else 10
-    shown = [(t, l) for t, l in zip(ticks, tick_labels) if t <= limit * 1.5]
+    shown = [(t, l) for t, l in zip(ticks, tick_labels) if t <= max_x * 1.5]
     ax.set_xticks([t for t, _ in shown], [l for _, l in shown])
-    ax.set_ylabel("Enqueue-to-ack latency (us)")
+    ax.set_ylabel("Enqueue-to-ack latency (us, log scale)")
     ax.set_title("End-to-end latency through ring and engine thread", fontsize=12, color=INK)
+    ax.legend(frameon=False, fontsize=9, loc="upper left")
     style_axis(ax)
     ax.grid(axis="x", visible=True)
     fig.tight_layout()
@@ -207,21 +202,18 @@ def main():
     ASSETS.mkdir(parents=True, exist_ok=True)
     generated = []
 
-    throughput_file = DATA / "throughput.json"
-    if throughput_file.exists():
-        results = load_jmh(throughput_file)
-        plot_throughput(results)
-        plot_allocation(results)
+    throughput_results = load_jmh_glob("throughput*.json")
+    if throughput_results:
+        plot_throughput(throughput_results)
+        plot_allocation(throughput_results)
         generated += ["throughput_by_depth.svg", "allocation_per_op.svg"]
 
-    latency_file = DATA / "latency.json"
-    if latency_file.exists():
-        plot_latency(load_jmh(latency_file))
-        generated.append("latency_percentiles.svg")
-
-    hgrm_file = DATA / "e2e-latency.hgrm"
-    if hgrm_file.exists():
-        plot_e2e(load_hgrm(hgrm_file))
+    series = []
+    for path in sorted(DATA.glob("e2e-latency*.hgrm")):
+        label = path.stem.replace("e2e-latency-", "").replace("e2e-latency", "measured load")
+        series.append((label + " orders/s" if label[:1].isdigit() else label, load_hgrm(path)))
+    if series:
+        plot_e2e(series)
         generated.append("e2e_percentile_curve.svg")
 
     if not generated:

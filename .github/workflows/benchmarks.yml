@@ -1,0 +1,36 @@
+name: Benchmarks (smoke)
+
+# Manual only. Shared runners produce meaningless performance numbers, so
+# this workflow exists to prove the suite runs and to archive raw output;
+# published numbers come from a quiesced local machine (see
+# docs/PERFORMANCE.md).
+
+on:
+  workflow_dispatch:
+
+jobs:
+  smoke:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '25'
+
+      - uses: gradle/actions/setup-gradle@v4
+
+      - name: Allocation check
+        run: |
+          ./gradlew :core:jmhJar
+          java -cp core/build/libs/core-2.0.0-jmh.jar \
+            io.github.rajeevchaurasia.orderbook.bench.AllocationCheck
+
+      - name: Benchmark smoke run
+        run: bash scripts/run_benchmarks.sh --quick
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: benchmark-data
+          path: docs/benchmarks/data/

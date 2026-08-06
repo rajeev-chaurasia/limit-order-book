@@ -46,6 +46,8 @@ tasks.register('runLoadTest', JavaExec) {
     classpath = sourceSets.main.runtimeClasspath
     mainClass = 'io.github.rajeevchaurasia.orderbook.app.loadtest.LoadTestMain'
     jvmArgs '-Xms1g', '-Xmx1g'
+    // Relative output paths resolve against the repo root, not app/.
+    workingDir = rootDir
 }
 
 test {

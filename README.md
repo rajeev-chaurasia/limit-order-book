@@ -1,81 +1,102 @@
-# [High-Performance Concurrent Limit Order Book (CLOB)](https://limit-order-book.streamlit.app/)
+# Limit Order Book
 
-A high-frequency trading (HFT) style Limit Order Book implemented in Java, designed to demonstrate **lock-free concurrency**, **zero-garbage collection (Zero-GC)** in the hot path, and **low-latency** architecture.
+A single-writer limit order book and matching engine in Java, built the way
+real matching engines are built: one thread owns all book state, commands
+flow in through a lock-free MPSC ring buffer, the data plane allocates
+nothing, and every performance claim in this README is backed by committed
+benchmark data you can regenerate.
 
-![CLOB UI](docs/assets/dashboard.png)
+**[Live demo dashboard](https://limit-order-book.streamlit.app/)** (Streamlit
+UI polling the REST API)
 
-## 🚀 Key Features
+![Order book dashboard](docs/assets/dashboard.png)
 
-### 1. Zero-GC Architecture
-- **Object Pooling**: Pre-allocated `Order` objects (100k+) to avoid `new` keyword allocations during trading.
-- **Primitive Collections**: Uses `fastutil` (e.g., `Long2ObjectOpenHashMap`) to avoid boxing/unboxing overhead for Order IDs.
-- **Intrusive Linked Lists**: Custom `OrderLevel` doubly-linked list uses `Order` objects themselves as nodes, eliminating `Node` wrapper allocations.
+## Design in one diagram
 
-### 2. Advanced Concurrency
-- **Lock-Free Reads**: Uses `StampedLock` (Optimistic Read) for L1 Market Data (Best Bid/Ask) access.
-- **Fine-Grained Locking**: Matches at specific price levels are protected by `ReentrantLock` per level, allowing concurrent matching at different prices.
-- **Atomic Operations**: Uses `ConcurrentSkipListMap` with atomic `compute()` operations to handle order book updates without global locks.
-- **Deadlock Prevention**: Strict locking hierarchy and "Mark-as-Removed" patterns to safely handle concurrent cancellations and matching.
+```
+producer threads (REST handlers, load generators)
+      |                                    reader threads
+      v                                          |
+  MPSC command ring (lock-free, preallocated)    v
+      |                                    L1 seqlock quote  <- published after
+      v                                          ^              every command
+  engine thread: matching + book  ---------------+
+      |
+      v
+  response futures, trade tape, L2/stats snapshots
+```
 
-### 3. High Performance
-- **Data Structures**: `ConcurrentSkipListMap` for sorted price levels (O(log n)) and `Long2ObjectOpenHashMap` for O(1) order lookups.
-- **Throughput**: Designed to sustain 100k+ orders/second on standard hardware.
-- **Latency**: Sub-millisecond P99 latency for order matching.
+- **Single-writer core.** The matching engine, price trees, order index,
+  and pools are owned by one thread. No locks in the book, no interleavings
+  to reason about: the classic concurrent-book races (lost orders, double
+  pool returns, a crossed book) are structurally inexpressible.
+- **Lock-free command ring.** A bounded Vyukov-style MPSC ring of
+  preallocated command slots, with padded cursors against false sharing and
+  a four-step release/acquire protocol documented in the code.
+- **Zero-allocation data plane.** Orders and price levels are pooled and
+  intrusive: orders are their own FIFO queue nodes, levels are their own
+  AVL tree nodes, fills are reported through primitive-argument callbacks.
+  Proven three ways: exact `ThreadMXBean` byte counting (0 bytes over 40M
+  operations), an Epsilon GC endurance run (80M operations on a 256 MB
+  heap with a collector that never collects), and the JMH GC profiler on
+  every published run.
+- **Lock-free market data.** Top of book through a seqlock (wait-free
+  writer, retrying readers); depth, trades, and stats as engine-built
+  snapshots that are internally consistent by construction.
+- **A naive baseline that keeps everything honest.** A deliberately simple
+  synchronized TreeMap engine implements the same contract. It is the
+  benchmark comparison target and the oracle for differential testing.
 
-## 🏗 Architecture
+The full design rationale is in **[docs/ARCHITECTURE.md](docs/ARCHITECTURE.md)**.
 
-### Core Components
-- **`OrderPool`**: A thread-safe, array-based stack for recycling `Order` objects.
-- **`OrderBook`**: The central data structure managing Bids (Descending) and Asks (Ascending).
-- **`OrderLevel`**: A custom linked list representing a queue of orders at a specific price.
-- **`MatchingEngine`**: Implements the Price-Time Priority (FIFO) matching algorithm.
-- **`OrderBookController`**: Exposes the system via a REST API (Javalin).
+## Measured performance
 
-### Tech Stack
-- **Language**: Java 17+
-- **Build Tool**: Gradle
-- **Web Server**: Javalin (Lightweight REST API)
-- **UI**: Streamlit (Python) for real-time visualization
-- **Collections**: fastutil, Java Concurrent Utils
+Methodology, environment, and raw data: **[docs/PERFORMANCE.md](docs/PERFORMANCE.md)**.
+All graphs regenerate from committed data with `python scripts/plot_benchmarks.py`.
 
-## 🛠 Setup & Usage
+### Throughput (single thread, by book depth and workload mix)
 
-### Prerequisites
-- Java 17+
-- Python 3.8+ (for UI)
+![Throughput by depth](docs/assets/throughput_by_depth.svg)
 
-### 1. Build the Project
+### Allocation per command (JMH GC profiler)
+
+![Allocation per op](docs/assets/allocation_per_op.svg)
+
+### End-to-end latency through ring and engine (coordinated-omission corrected)
+
+![End-to-end percentile curve](docs/assets/e2e_percentile_curve.svg)
+
+## Running it
+
+Requires JDK 25 (the Gradle toolchain provisions it automatically) and
+Python 3.8+ for the dashboard.
+
 ```bash
+# Build and test everything
 ./gradlew build
-```
 
-### 2. Run the Backend Server
-Starts the CLOB engine and REST API on port 8080.
-```bash
+# Start the REST API on port 8080 (seeds a demo book)
 ./gradlew runApiServer
-```
 
-### 3. Run the Visualization UI
-Starts the Streamlit dashboard on port 8501.
-```bash
+# Start the dashboard on port 8501
 pip install -r ui/requirements.txt
 streamlit run ui/streamlit_app.py
 ```
 
-## 📡 API Documentation
+Or both at once: `./start-ui.sh`
 
-The system exposes a REST API at `http://localhost:8080`.
+## REST API
 
 | Method | Endpoint | Description |
 | :--- | :--- | :--- |
-| `GET` | `/api/book` | Get full order book snapshot (L2 Depth) |
-| `GET` | `/api/quote` | Get Best Bid and Best Ask (L1) |
-| `POST` | `/api/orders` | Submit a new Limit Order |
-| `DELETE` | `/api/orders/{id}` | Cancel an order by ID |
-| `GET` | `/api/trades` | Get list of recent trades |
-| `GET` | `/api/stats` | Get system statistics (Pool usage, etc.) |
+| `GET` | `/api/book` | Order book snapshot (L2 depth) |
+| `GET` | `/api/quote` | Best bid and ask (L1, served from the seqlock) |
+| `POST` | `/api/orders` | Submit a limit order |
+| `DELETE` | `/api/orders/{id}` | Cancel an order |
+| `GET` | `/api/trades` | Recent trades |
+| `GET` | `/api/stats` | Engine statistics |
+| `GET` | `/health` | Health check |
 
-### Example: Submit Order
 ```json
 POST /api/orders
 {
@@ -84,21 +105,66 @@ POST /api/orders
   "quantity": 100
 }
 ```
-*Note: Price is fixed-point (10500 = $105.00)*
 
-## 🧪 Performance Testing
+Prices are fixed-point integers (10500 = $105.00). A crossing order matches
+immediately at the resting order's price; the remainder rests on the book.
 
-To run the JMH microbenchmarks (if configured):
+## Testing
+
 ```bash
-./gradlew jmh
+./gradlew test
 ```
 
-## 📂 Project Structure
+- **Differential tests**: seeded random command streams (150k commands per
+  seed) run against both the optimized engine and the naive oracle, which
+  must produce byte-identical event sequences and identical final books.
+- **Contract tests**: one behavioral suite runs against both engine
+  implementations.
+- **Concurrency stress**: 800k commands through the ring from four
+  producers with per-producer FIFO and exact-count assertions; a
+  conservation test fires 100k concurrent orders and proves that submitted
+  quantity equals filled plus canceled quantity, buy volume equals sell
+  volume, and the pools reconcile exactly.
+- **Seqlock torn-read tests**, **AVL structural validation** against a
+  reference implementation, and **wire-contract tests** that pin the JSON
+  the deployed dashboard consumes.
+
+## Benchmarks
+
+```bash
+# Full suite (about half an hour on a quiet machine)
+bash scripts/run_benchmarks.sh
+
+# The zero-allocation proof alone
+./gradlew :core:jmhJar
+java -cp core/build/libs/core-2.0.0-jmh.jar \
+    io.github.rajeevchaurasia.orderbook.bench.AllocationCheck
 ```
-src/main/java/com/hft/clob/
-├── api/            # REST API Controller
-├── core/           # Core Data Structures (Order, Book, Pool)
-├── engine/         # Matching Logic
-└── ApiServer.java  # Application Entry Point
-ui/                 # Streamlit Dashboard
+
+## Project structure
+
 ```
+core/   the engine: no framework dependencies (fastutil only)
+  book/        Order, OrderLevel, pools, intrusive AVL LevelTree, OrderBook
+  engine/      MatchingEngine, EngineLoop (the single writer), listener API
+  ring/        MpscCommandRing, command slots
+  gateway/     EngineGateway: producer-facing API with backpressure
+  marketdata/  L1Quote seqlock, TradeTape, snapshot records
+  baseline/    NaiveMatchingEngine: the oracle and benchmark baseline
+  src/jmh/     JMH suite, workload generator, AllocationCheck
+app/    the demo surface
+  api/         Javalin REST controller and DTOs
+  loadtest/    HdrHistogram end-to-end latency harness
+docs/   ARCHITECTURE.md, PERFORMANCE.md, benchmark data and graphs
+```
+
+## Limitations and future work
+
+Single instrument (multi-symbol is a router over per-shard engines), no
+persistence or replay journal yet, tree-based book rather than a price
+ladder, REST-only ingress, and no exotic order types. Each is discussed at
+the end of [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md#limitations-and-future-work).
+
+## License
+
+[MIT](LICENSE)

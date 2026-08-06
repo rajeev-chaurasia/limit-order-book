@@ -13,6 +13,9 @@
 build/
 out/
 
+# Local tooling
+.venv*/
+
 # IDE
 .idea/
 .vscode/
@@ -33,3 +36,6 @@ results/
 
 # Logs
 logs/
+
+# Python
+__pycache__/
