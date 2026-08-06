@@ -16,7 +16,7 @@ class OrderLevelTest {
 
     private static OrderLevel level(long price) {
         OrderLevel level = new OrderLevel();
-        level.init(price);
+        level.init(price, price);
         return level;
     }
 

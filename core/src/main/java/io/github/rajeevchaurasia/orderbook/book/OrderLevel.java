@@ -18,11 +18,20 @@ public final class OrderLevel {
     private int size;
     private long totalQuantity;
 
+    // Intrusive AVL node fields: the level is its own LevelTree node, so
+    // creating or dropping a price level never allocates. Owned by LevelTree.
+    long sortKey;
+    OrderLevel left;
+    OrderLevel right;
+    OrderLevel parent;
+    int height;
+
     /** Guards against double release back to the pool. */
     boolean pooled;
 
-    void init(long price) {
+    void init(long price, long sortKey) {
         this.price = price;
+        this.sortKey = sortKey;
     }
 
     void reset() {
@@ -31,6 +40,11 @@ public final class OrderLevel {
         this.tail = null;
         this.size = 0;
         this.totalQuantity = 0;
+        this.sortKey = 0;
+        this.left = null;
+        this.right = null;
+        this.parent = null;
+        this.height = 0;
     }
 
     public long price() {
